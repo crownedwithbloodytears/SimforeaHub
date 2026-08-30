@@ -1,30 +1,31 @@
 -- ============================================================
--- PalantirX UI Library (Standalone)
--- Воспроизводит основные функции UI из оригинального скрипта
+-- PalantirX UI Library (Standalone) – исправленная версия
 -- ============================================================
 
 local PalantirUI = {}
 PalantirUI.__index = PalantirUI
 
--- Вспомогательные функции
 local function GetTextBounds(text, font, size, maxWidth)
     local textService = game:GetService("TextService")
     local bounds = textService:GetTextSize(text, size, font, Vector2.new(maxWidth or 1920, math.huge))
     return bounds.X, bounds.Y
 end
 
--- Создание ScreenGui
 local function createScreenGui()
     local gui = Instance.new("ScreenGui")
     gui.Name = "PalantirUI_Gui"
     gui.ResetOnSpawn = false
     gui.IgnoreGuiInset = true
     gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+    -- Защита GUI
+    pcall(function()
+        if syn and syn.protect_gui then syn.protect_gui(gui) end
+        if protectgui then protectgui(gui) end
+    end)
     gui.Parent = game:GetService("CoreGui")
     return gui
 end
 
--- Основная таблица библиотеки
 local Library = {
     ScreenGui = nil,
     Registry = {},
@@ -83,7 +84,6 @@ function Library:PlayTypeSound()
     self._typeSound:Play()
 end
 
--- Создание объекта (аналог table56.Create)
 function Library:Create(obj, properties)
     if type(obj) == "string" then
         obj = Instance.new(obj)
@@ -94,7 +94,6 @@ function Library:Create(obj, properties)
     return obj
 end
 
--- Добавление в реестр для обновления цветов и т.д.
 function Library:AddToRegistry(instance, properties, hud)
     local entry = { Instance = instance, Properties = properties }
     table.insert(self.Registry, entry)
@@ -102,7 +101,6 @@ function Library:AddToRegistry(instance, properties, hud)
     return entry
 end
 
--- Обновление цветов по реестру
 function Library:UpdateColors()
     for _, entry in ipairs(self.Registry) do
         local inst = entry.Instance
@@ -117,7 +115,6 @@ function Library:UpdateColors()
     end
 end
 
--- Утилита для создания Label
 function Library:CreateLabel(properties, hud)
     local label = self:Create("TextLabel", {
         BackgroundTransparency = 1,
@@ -133,7 +130,6 @@ function Library:CreateLabel(properties, hud)
     return label
 end
 
--- Утилита для добавления градиента
 function Library:AddGradient(instance, rotation)
     local grad = Instance.new("UIGradient")
     grad.Transparency = NumberSequence.new({
@@ -145,7 +141,6 @@ function Library:AddGradient(instance, rotation)
     return grad
 end
 
--- Обработка кликов для draggable
 function Library:MakeDraggable(frame, headerHeight)
     headerHeight = headerHeight or 0
     local dragging = false
@@ -188,7 +183,6 @@ function Library:MakeDraggable(frame, headerHeight)
     end)
 end
 
--- Уведомления
 function Library:Notify(text, duration, level)
     if shared and shared.Palantir and shared.Palantir.silent then return end
     duration = duration or 3
@@ -201,13 +195,30 @@ function Library:Notify(text, duration, level)
     }
     local color = colors[level] or self.AccentColor
 
-    -- Создаем уведомление
+    if not self.NotificationArea then
+        self.NotificationArea = self:Create("Frame", {
+            BackgroundTransparency = 1,
+            AnchorPoint = Vector2.new(0, 0),
+            Position = UDim2.new(0, 16, 0, 16),
+            Size = UDim2.new(0, 260, 0, 0),
+            AutomaticSize = Enum.AutomaticSize.Y,
+            ZIndex = 100,
+            Parent = self.ScreenGui
+        })
+        local layout = Instance.new("UIListLayout")
+        layout.FillDirection = Enum.FillDirection.Vertical
+        layout.VerticalAlignment = Enum.VerticalAlignment.Top
+        layout.SortOrder = Enum.SortOrder.LayoutOrder
+        layout.Padding = UDim.new(0, 6)
+        layout.Parent = self.NotificationArea
+    end
+
     local container = self:Create("Frame", {
         BackgroundTransparency = 1,
         Size = UDim2.new(1, 0, 0, 0),
         ClipsDescendants = true,
         ZIndex = 100,
-        Parent = self.NotificationArea or self.ScreenGui
+        Parent = self.NotificationArea
     })
 
     local inner = self:Create("Frame", {
@@ -220,10 +231,7 @@ function Library:Notify(text, duration, level)
         Parent = container
     })
 
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 5)
-    corner.Parent = inner
-
+    Instance.new("UICorner").Parent = inner
     local stroke = Instance.new("UIStroke")
     stroke.Color = Color3.fromRGB(40, 40, 40)
     stroke.Thickness = 1
@@ -248,7 +256,6 @@ function Library:Notify(text, duration, level)
         Parent = inner
     })
 
-    -- Анимация появления
     local tween = game:GetService("TweenService")
     local appear = tween:Create(inner, TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
         Position = UDim2.new(0, 0, 0, 0)
@@ -257,7 +264,6 @@ function Library:Notify(text, duration, level)
 
     self:PlayNotifSound()
 
-    -- Прогресс-бар
     local progress = self:Create("Frame", {
         BackgroundColor3 = color,
         BackgroundTransparency = 0.6,
@@ -269,7 +275,6 @@ function Library:Notify(text, duration, level)
         Parent = inner
     })
 
-    -- Задержка и скрытие
     task.spawn(function()
         task.wait(duration)
         local disappear = tween:Create(inner, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {
@@ -280,7 +285,6 @@ function Library:Notify(text, duration, level)
         container:Destroy()
     end)
 
-    -- Клик для закрытия
     inner.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             container:Destroy()
@@ -288,7 +292,6 @@ function Library:Notify(text, duration, level)
     end)
 end
 
--- Создание окна
 function Library:CreateWindow(settings)
     settings = settings or {}
     local title = settings.Title or "Window"
@@ -301,22 +304,6 @@ function Library:CreateWindow(settings)
 
     if not self.ScreenGui then
         self.ScreenGui = createScreenGui()
-        -- Создаем область для уведомлений
-        self.NotificationArea = self:Create("Frame", {
-            BackgroundTransparency = 1,
-            AnchorPoint = Vector2.new(0, 0),
-            Position = UDim2.new(0, 16, 0, 16),
-            Size = UDim2.new(0, 260, 0, 0),
-            AutomaticSize = Enum.AutomaticSize.Y,
-            ZIndex = 100,
-            Parent = self.ScreenGui
-        })
-        local layout = Instance.new("UIListLayout")
-        layout.FillDirection = Enum.FillDirection.Vertical
-        layout.VerticalAlignment = Enum.VerticalAlignment.Top
-        layout.SortOrder = Enum.SortOrder.LayoutOrder
-        layout.Padding = UDim.new(0, 6)
-        layout.Parent = self.NotificationArea
     end
 
     local window = self:Create("Frame", {
@@ -339,7 +326,6 @@ function Library:CreateWindow(settings)
 
     self:AddGradient(window)
 
-    -- Заголовок
     local titleBar = self:Create("Frame", {
         BackgroundColor3 = Color3.fromRGB(20, 20, 20),
         BorderSizePixel = 0,
@@ -373,7 +359,6 @@ function Library:CreateWindow(settings)
 
     self:MakeDraggable(window, 36)
 
-    -- Контейнер вкладок
     local mainContainer = self:Create("Frame", {
         BackgroundColor3 = self.MainColor,
         BorderSizePixel = 0,
@@ -384,7 +369,6 @@ function Library:CreateWindow(settings)
     })
     self:AddToRegistry(mainContainer, { BackgroundColor3 = "MainColor" })
 
-    -- Вкладки (header)
     local tabHeader = self:Create("Frame", {
         BackgroundTransparency = 1,
         Position = UDim2.new(0, 8, 0, 2),
@@ -409,7 +393,6 @@ function Library:CreateWindow(settings)
     })
     self:AddToRegistry(tabIndicator, { BackgroundColor3 = "AccentColor" })
 
-    -- Контент
     local contentArea = self:Create("Frame", {
         BackgroundColor3 = self.BackgroundColor,
         BorderSizePixel = 0,
@@ -421,7 +404,6 @@ function Library:CreateWindow(settings)
     self:AddToRegistry(contentArea, { BackgroundColor3 = "BackgroundColor" })
     self:AddGradient(contentArea)
 
-    -- Объект окна
     local windowObj = {
         Tabs = {},
         Holder = window,
@@ -429,8 +411,36 @@ function Library:CreateWindow(settings)
         TabHeader = tabHeader,
         TabIndicator = tabIndicator,
         TitleLabel = titleLabel,
+        _visible = false,
         SetWindowTitle = function(self, newTitle)
             titleLabel.Text = newTitle
+        end,
+        Toggle = function(self)
+            self._visible = not self._visible
+            window.Visible = self._visible
+            -- Если окно скрыто, закрываем все открытые выпадающие списки и т.д.
+            if not self._visible then
+                for frame, _ in pairs(self.OpenedFrames) do
+                    if frame and frame.Visible then
+                        frame.Visible = false
+                    end
+                end
+                self.OpenedFrames = {}
+            end
+        end,
+        Show = function(self)
+            self._visible = true
+            window.Visible = true
+        end,
+        Hide = function(self)
+            self._visible = false
+            window.Visible = false
+            for frame, _ in pairs(self.OpenedFrames) do
+                if frame and frame.Visible then
+                    frame.Visible = false
+                end
+            end
+            self.OpenedFrames = {}
         end,
         AddTab = function(self, name)
             local tabButton = self:Create("Frame", {
@@ -441,7 +451,6 @@ function Library:CreateWindow(settings)
                 Parent = tabHeader
             })
             table.insert(self.Tabs, tabButton)
-            -- пересчет размеров
             for i, btn in ipairs(self.Tabs) do
                 btn.Size = UDim2.new(1 / #self.Tabs, 0, 1, 0)
             end
@@ -463,7 +472,6 @@ function Library:CreateWindow(settings)
                 Parent = contentArea
             })
 
-            -- Контейнеры для групп (левая и правая колонки)
             local leftCol = self:Create("ScrollingFrame", {
                 BackgroundTransparency = 1,
                 BorderSizePixel = 0,
@@ -485,7 +493,6 @@ function Library:CreateWindow(settings)
                 Parent = tabContent
             })
 
-            -- Автообновление CanvasSize
             for _, col in ipairs({leftCol, rightCol}) do
                 local layout = col:FindFirstChildOfClass("UIListLayout") or Instance.new("UIListLayout")
                 layout.Padding = UDim.new(0, 8)
@@ -511,14 +518,11 @@ function Library:CreateWindow(settings)
                 TabboxCount = 0,
                 ShowTab = function(self)
                     for _, t in pairs(windowObj.Tabs) do
-                        if t ~= tabObj then
-                            t:HideTab()
-                        end
+                        if t ~= tabObj then t:HideTab() end
                     end
-                    label.TextColor3 = self.AccentColor
-                    self:AddToRegistry(label, { TextColor3 = "AccentColor" })
+                    label.TextColor3 = Library.AccentColor
+                    Library:AddToRegistry(label, { TextColor3 = "AccentColor" })
                     tabContent.Visible = true
-                    -- обновляем индикатор
                     local btnPos = tabButton.AbsolutePosition.X
                     local headerPos = tabHeader.AbsolutePosition.X
                     local btnSize = tabButton.AbsoluteSize.X
@@ -526,8 +530,8 @@ function Library:CreateWindow(settings)
                     tabIndicator.Size = UDim2.new(0, btnSize, 0, 2)
                 end,
                 HideTab = function(self)
-                    label.TextColor3 = self.FontColor
-                    self:AddToRegistry(label, { TextColor3 = "FontColor" })
+                    label.TextColor3 = Library.FontColor
+                    Library:AddToRegistry(label, { TextColor3 = "FontColor" })
                     tabContent.Visible = false
                 end,
                 AddLeftGroupbox = function(self, name)
@@ -547,21 +551,21 @@ function Library:CreateWindow(settings)
                     side = side or 1
                     local col = side == 1 and leftCol or rightCol
                     local box = self:Create("Frame", {
-                        BackgroundColor3 = self.MainColor,
+                        BackgroundColor3 = Library.MainColor,
                         BorderSizePixel = 0,
                         Size = UDim2.new(1, 0, 0, 28),
                         ZIndex = 2,
                         Parent = col
                     })
-                    self:AddToRegistry(box, { BackgroundColor3 = "MainColor" })
+                    Library:AddToRegistry(box, { BackgroundColor3 = "MainColor" })
                     local strokeBox = Instance.new("UIStroke")
-                    strokeBox.Color = self.OutlineColor
+                    strokeBox.Color = Library.OutlineColor
                     strokeBox.Thickness = 1
                     strokeBox.Parent = box
-                    self:AddToRegistry(strokeBox, { Color = "OutlineColor" })
-                    self:AddGradient(box)
+                    Library:AddToRegistry(strokeBox, { Color = "OutlineColor" })
+                    Library:AddGradient(box)
 
-                    local titleLabel2 = self:CreateLabel({
+                    local titleLabel2 = Library:CreateLabel({
                         Size = UDim2.new(1, 0, 0, 24),
                         Position = UDim2.new(0, 8, 0, 0),
                         Text = name,
@@ -570,8 +574,8 @@ function Library:CreateWindow(settings)
                         ZIndex = 5,
                         Parent = box
                     })
-                    self:AddToRegistry(titleLabel2, { TextColor3 = "AccentColor" })
-                    titleLabel2.TextColor3 = self.AccentColor
+                    Library:AddToRegistry(titleLabel2, { TextColor3 = "AccentColor" })
+                    titleLabel2.TextColor3 = Library.AccentColor
 
                     local line = self:Create("Frame", {
                         BackgroundColor3 = Color3.fromRGB(45, 45, 45),
@@ -617,7 +621,7 @@ function Library:CreateWindow(settings)
                             return blank
                         end,
                         AddLabel = function(self, text, wrap)
-                            local labelObj = self:CreateLabel({
+                            local labelObj = Library:CreateLabel({
                                 Size = UDim2.new(1, -4, 0, 15),
                                 Text = text,
                                 TextSize = 14,
@@ -627,7 +631,7 @@ function Library:CreateWindow(settings)
                                 Parent = self.Container
                             })
                             if wrap then
-                                local _, h = GetTextBounds(text, self.Font, 14, labelObj.AbsoluteSize.X)
+                                local _, h = GetTextBounds(text, Library.Font, 14, labelObj.AbsoluteSize.X)
                                 labelObj.Size = UDim2.new(1, -4, 0, h)
                             end
                             self:AddBlank(5)
@@ -635,7 +639,7 @@ function Library:CreateWindow(settings)
                             return { TextLabel = labelObj, SetText = function(self, newText)
                                 labelObj.Text = newText
                                 if wrap then
-                                    local _, h = GetTextBounds(newText, self.Font, 14, labelObj.AbsoluteSize.X)
+                                    local _, h = GetTextBounds(newText, Library.Font, 14, labelObj.AbsoluteSize.X)
                                     labelObj.Size = UDim2.new(1, -4, 0, h)
                                 end
                                 groupObj:Resize()
@@ -644,30 +648,30 @@ function Library:CreateWindow(settings)
                         AddDivider = function(self)
                             self:AddBlank(4)
                             local div = self:Create("Frame", {
-                                BackgroundColor3 = self.OutlineColor,
+                                BackgroundColor3 = Library.OutlineColor,
                                 BorderSizePixel = 0,
                                 Size = UDim2.new(1, -8, 0, 1),
                                 ZIndex = 5,
                                 Parent = self.Container
                             })
-                            self:AddToRegistry(div, { BackgroundColor3 = "OutlineColor" })
+                            Library:AddToRegistry(div, { BackgroundColor3 = "OutlineColor" })
                             self:AddBlank(4)
                             self:Resize()
                         end,
                         AddButton = function(self, data)
                             local btnObj = {}
                             local button = self:Create("Frame", {
-                                BackgroundColor3 = self.BackgroundColor,
+                                BackgroundColor3 = Library.BackgroundColor,
                                 BorderSizePixel = 0,
                                 Size = UDim2.new(1, -4, 0, 24),
                                 ZIndex = 5,
                                 Parent = self.Container
                             })
-                            self:AddToRegistry(button, { BackgroundColor3 = "BackgroundColor" })
+                            Library:AddToRegistry(button, { BackgroundColor3 = "BackgroundColor" })
                             Instance.new("UICorner").Parent = button
-                            self:AddGradient(button)
+                            Library:AddGradient(button)
 
-                            local labelBtn = self:CreateLabel({
+                            local labelBtn = Library:CreateLabel({
                                 Size = UDim2.new(1, 0, 1, 0),
                                 Text = data.Text or "Button",
                                 TextSize = 13,
@@ -675,14 +679,15 @@ function Library:CreateWindow(settings)
                                 Parent = button
                             })
 
-                            -- Hover эффект
                             button.MouseEnter:Connect(function()
-                                self:Create("Tween", button, TweenInfo.new(0.12), { BackgroundColor3 = self.AccentColor }):Play()
-                                labelBtn.TextColor3 = self.MainColor
+                                local tween = game:GetService("TweenService")
+                                tween:Create(button, TweenInfo.new(0.12), { BackgroundColor3 = Library.AccentColor }):Play()
+                                labelBtn.TextColor3 = Library.MainColor
                             end)
                             button.MouseLeave:Connect(function()
-                                self:Create("Tween", button, TweenInfo.new(0.12), { BackgroundColor3 = self.BackgroundColor }):Play()
-                                labelBtn.TextColor3 = self.FontColor
+                                local tween = game:GetService("TweenService")
+                                tween:Create(button, TweenInfo.new(0.12), { BackgroundColor3 = Library.BackgroundColor }):Play()
+                                labelBtn.TextColor3 = Library.FontColor
                             end)
 
                             local func = data.Func or function() end
@@ -692,17 +697,17 @@ function Library:CreateWindow(settings)
 
                             button.InputBegan:Connect(function(input)
                                 if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                                    if self:MouseIsOverOpenedFrame() then return end
-                                    self:PlayClickSound()
+                                    if Library:MouseIsOverOpenedFrame() then return end
+                                    Library:PlayClickSound()
                                     if doubleClick then
                                         if locked then return end
                                         locked = true
                                         labelBtn.Text = doubleText
-                                        self:AddToRegistry(labelBtn, { TextColor3 = "AccentColor" })
+                                        Library:AddToRegistry(labelBtn, { TextColor3 = "AccentColor" })
                                         task.wait(2)
                                         locked = false
                                         labelBtn.Text = data.Text
-                                        self:AddToRegistry(labelBtn, { TextColor3 = "FontColor" })
+                                        Library:AddToRegistry(labelBtn, { TextColor3 = "FontColor" })
                                     else
                                         func()
                                     end
@@ -730,7 +735,7 @@ function Library:CreateWindow(settings)
                             })
 
                             local toggleFrame = self:Create("Frame", {
-                                BackgroundColor3 = self.OutlineColor,
+                                BackgroundColor3 = Library.OutlineColor,
                                 BorderSizePixel = 0,
                                 Position = UDim2.new(0, 0, 0.5, 0),
                                 AnchorPoint = Vector2.new(0, 0.5),
@@ -738,7 +743,7 @@ function Library:CreateWindow(settings)
                                 ZIndex = 5,
                                 Parent = container
                             })
-                            self:AddToRegistry(toggleFrame, { BackgroundColor3 = "OutlineColor" })
+                            Library:AddToRegistry(toggleFrame, { BackgroundColor3 = "OutlineColor" })
                             Instance.new("UICorner").Parent = toggleFrame
 
                             local innerCircle = self:Create("Frame", {
@@ -752,7 +757,7 @@ function Library:CreateWindow(settings)
                             })
                             Instance.new("UICorner").Parent = innerCircle
 
-                            local labelToggle = self:CreateLabel({
+                            local labelToggle = Library:CreateLabel({
                                 Size = UDim2.new(1, -36, 1, 0),
                                 Position = UDim2.new(0, 34, 0, 0),
                                 Text = toggleObj.Text,
@@ -778,19 +783,19 @@ function Library:CreateWindow(settings)
                             end
 
                             function toggleObj:Display()
-                                local targetColor = self.Value and self.AccentColor or self.OutlineColor
+                                local targetColor = self.Value and Library.AccentColor or Library.OutlineColor
                                 local tween = game:GetService("TweenService")
                                 tween:Create(toggleFrame, TweenInfo.new(0.15), { BackgroundColor3 = targetColor }):Play()
                                 tween:Create(innerCircle, TweenInfo.new(0.15), {
                                     Position = self.Value and UDim2.new(0, 16, 0.5, 0) or UDim2.new(0, 2, 0.5, 0)
                                 }):Play()
-                                self:AddToRegistry(toggleFrame, { BackgroundColor3 = self.Value and "AccentColor" or "OutlineColor" })
+                                Library:AddToRegistry(toggleFrame, { BackgroundColor3 = self.Value and "AccentColor" or "OutlineColor" })
                             end
 
                             clickArea.InputBegan:Connect(function(input)
                                 if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                                    if self:MouseIsOverOpenedFrame() then return end
-                                    self:PlayClickSound()
+                                    if Library:MouseIsOverOpenedFrame() then return end
+                                    Library:PlayClickSound()
                                     toggleObj:SetValue(not toggleObj.Value)
                                 end
                             end)
@@ -829,7 +834,7 @@ function Library:CreateWindow(settings)
                             })
 
                             if not data.Compact then
-                                local labelSlider = self:CreateLabel({
+                                local labelSlider = Library:CreateLabel({
                                     Size = UDim2.new(1, 0, 0, 10),
                                     Text = text,
                                     TextSize = 14,
@@ -842,28 +847,28 @@ function Library:CreateWindow(settings)
                             end
 
                             local sliderFrame = self:Create("Frame", {
-                                BackgroundColor3 = self.BackgroundColor,
+                                BackgroundColor3 = Library.BackgroundColor,
                                 BorderSizePixel = 0,
                                 Size = UDim2.new(1, -4, 0, 14),
                                 ZIndex = 5,
                                 Parent = container
                             })
-                            self:AddToRegistry(sliderFrame, { BackgroundColor3 = "BackgroundColor" })
+                            Library:AddToRegistry(sliderFrame, { BackgroundColor3 = "BackgroundColor" })
                             Instance.new("UICorner").Parent = sliderFrame
-                            self:AddGradient(sliderFrame)
+                            Library:AddGradient(sliderFrame)
 
                             local fill = self:Create("Frame", {
-                                BackgroundColor3 = self.AccentColor,
+                                BackgroundColor3 = Library.AccentColor,
                                 BorderSizePixel = 0,
                                 Size = UDim2.new(0, 0, 1, 0),
                                 ZIndex = 7,
                                 Parent = sliderFrame
                             })
-                            self:AddToRegistry(fill, { BackgroundColor3 = "AccentColor" })
+                            Library:AddToRegistry(fill, { BackgroundColor3 = "AccentColor" })
                             Instance.new("UICorner").Parent = fill
-                            self:AddGradient(fill)
+                            Library:AddGradient(fill)
 
-                            local valueLabel = self:CreateLabel({
+                            local valueLabel = Library:CreateLabel({
                                 Position = UDim2.new(1, 0, 0.5, 0),
                                 AnchorPoint = Vector2.new(1, 0.5),
                                 Size = UDim2.new(0, 0, 0, 0),
@@ -878,8 +883,7 @@ function Library:CreateWindow(settings)
                                 local ratio = (val - min) / (max - min)
                                 fill.Size = UDim2.new(ratio, 0, 1, 0)
                                 valueLabel.Text = tostring(val) .. suffix
-                                -- обновляем размеры
-                                local bounds = GetTextBounds(valueLabel.Text, self.Font, 13)
+                                local bounds = GetTextBounds(valueLabel.Text, Library.Font, 13)
                                 valueLabel.Size = UDim2.new(0, bounds, 0, 14)
                             end
 
@@ -956,7 +960,7 @@ function Library:CreateWindow(settings)
                             })
 
                             if not data.Compact then
-                                local labelDrop = self:CreateLabel({
+                                local labelDrop = Library:CreateLabel({
                                     Size = UDim2.new(1, 0, 0, 10),
                                     Text = text,
                                     TextSize = 14,
@@ -969,15 +973,15 @@ function Library:CreateWindow(settings)
                             end
 
                             local dropdownFrame = self:Create("Frame", {
-                                BackgroundColor3 = self.BackgroundColor,
+                                BackgroundColor3 = Library.BackgroundColor,
                                 BorderSizePixel = 0,
                                 Size = UDim2.new(1, -4, 0, 24),
                                 ZIndex = 5,
                                 Parent = container
                             })
-                            self:AddToRegistry(dropdownFrame, { BackgroundColor3 = "BackgroundColor" })
+                            Library:AddToRegistry(dropdownFrame, { BackgroundColor3 = "BackgroundColor" })
                             Instance.new("UICorner").Parent = dropdownFrame
-                            self:AddGradient(dropdownFrame)
+                            Library:AddGradient(dropdownFrame)
 
                             local arrow = self:Create("ImageLabel", {
                                 AnchorPoint = Vector2.new(0, 0.5),
@@ -989,7 +993,7 @@ function Library:CreateWindow(settings)
                                 Parent = dropdownFrame
                             })
 
-                            local selectedText = self:CreateLabel({
+                            local selectedText = Library:CreateLabel({
                                 Position = UDim2.new(0, 8, 0, 0),
                                 Size = UDim2.new(1, -24, 1, 0),
                                 Text = multi and "" or tostring(default),
@@ -1001,7 +1005,7 @@ function Library:CreateWindow(settings)
                             })
 
                             local dropdownList = self:Create("Frame", {
-                                BackgroundColor3 = self.BackgroundColor,
+                                BackgroundColor3 = Library.BackgroundColor,
                                 BorderSizePixel = 0,
                                 ZIndex = 20,
                                 Visible = false,
@@ -1010,13 +1014,13 @@ function Library:CreateWindow(settings)
                                 Size = UDim2.new(1, 0, 0, 0),
                                 Parent = dropdownFrame
                             })
-                            self:AddToRegistry(dropdownList, { BackgroundColor3 = "BackgroundColor" })
+                            Library:AddToRegistry(dropdownList, { BackgroundColor3 = "BackgroundColor" })
                             Instance.new("UICorner").Parent = dropdownList
                             local strokeDrop = Instance.new("UIStroke")
-                            strokeDrop.Color = self.OutlineColor
+                            strokeDrop.Color = Library.OutlineColor
                             strokeDrop.Thickness = 1
                             strokeDrop.Parent = dropdownList
-                            self:AddToRegistry(strokeDrop, { Color = "OutlineColor" })
+                            Library:AddToRegistry(strokeDrop, { Color = "OutlineColor" })
 
                             local listLayout = Instance.new("UIListLayout")
                             listLayout.FillDirection = Enum.FillDirection.Vertical
@@ -1044,14 +1048,14 @@ function Library:CreateWindow(settings)
                                 local height = 0
                                 for _, val in ipairs(values) do
                                     local item = self:Create("Frame", {
-                                        BackgroundColor3 = self.BackgroundColor,
+                                        BackgroundColor3 = Library.BackgroundColor,
                                         BorderSizePixel = 0,
                                         Size = UDim2.new(1, 0, 0, 22),
                                         ZIndex = 21,
                                         Parent = dropdownList
                                     })
-                                    self:AddToRegistry(item, { BackgroundColor3 = "BackgroundColor" })
-                                    local itemLabel = self:CreateLabel({
+                                    Library:AddToRegistry(item, { BackgroundColor3 = "BackgroundColor" })
+                                    local itemLabel = Library:CreateLabel({
                                         Size = UDim2.new(1, -10, 1, 0),
                                         Position = UDim2.new(0, 8, 0, 0),
                                         Text = val,
@@ -1061,12 +1065,12 @@ function Library:CreateWindow(settings)
                                         Parent = item
                                     })
                                     local isSelected = multi and dropdownObj.Value[val] or dropdownObj.Value == val
-                                    itemLabel.TextColor3 = isSelected and self.AccentColor or self.FontColor
-                                    self:AddToRegistry(itemLabel, { TextColor3 = isSelected and "AccentColor" or "FontColor" })
+                                    itemLabel.TextColor3 = isSelected and Library.AccentColor or Library.FontColor
+                                    Library:AddToRegistry(itemLabel, { TextColor3 = isSelected and "AccentColor" or "FontColor" })
 
                                     item.InputBegan:Connect(function(input)
                                         if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                                            self:PlayClickSound()
+                                            Library:PlayClickSound()
                                             if multi then
                                                 dropdownObj.Value[val] = not dropdownObj.Value[val]
                                             else
@@ -1112,15 +1116,25 @@ function Library:CreateWindow(settings)
 
                             dropdownFrame.InputBegan:Connect(function(input)
                                 if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                                    if self:MouseIsOverOpenedFrame() then return end
-                                    self:PlayClickSound()
+                                    if Library:MouseIsOverOpenedFrame() then return end
+                                    Library:PlayClickSound()
                                     dropdownList.Visible = not dropdownList.Visible
                                     if dropdownList.Visible then
+                                        Library.OpenedFrames[dropdownList] = true
                                         dropdownList.Position = UDim2.new(0, 0, 0, dropdownFrame.Size.Y.Offset + 2)
                                         dropdownList.Size = UDim2.new(1, 0, 0, 0)
-                                        dropdownList:TweenSize(UDim2.new(1, 0, 0, dropdownList.Size.Y.Offset + 2), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.15, true)
+                                        local tween = game:GetService("TweenService")
+                                        tween:Create(dropdownList, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                                            Size = UDim2.new(1, 0, 0, height + 2)
+                                        }):Play()
                                     else
-                                        dropdownList:TweenSize(UDim2.new(1, 0, 0, 0), Enum.EasingDirection.In, Enum.EasingStyle.Quad, 0.1, true)
+                                        Library.OpenedFrames[dropdownList] = nil
+                                        local tween = game:GetService("TweenService")
+                                        tween:Create(dropdownList, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+                                            Size = UDim2.new(1, 0, 0, 0)
+                                        }):Play()
+                                        task.wait(0.1)
+                                        dropdownList.Visible = false
                                     end
                                 end
                             end)
@@ -1153,7 +1167,7 @@ function Library:CreateWindow(settings)
                                 Parent = self.Container
                             })
 
-                            local labelInput = self:CreateLabel({
+                            local labelInput = Library:CreateLabel({
                                 Size = UDim2.new(1, 0, 0, 15),
                                 Text = data.Text or "Input",
                                 TextSize = 14,
@@ -1163,30 +1177,30 @@ function Library:CreateWindow(settings)
                             })
 
                             local inputFrame = self:Create("Frame", {
-                                BackgroundColor3 = self.BackgroundColor,
+                                BackgroundColor3 = Library.BackgroundColor,
                                 BorderSizePixel = 0,
                                 Size = UDim2.new(1, -4, 0, 24),
                                 ZIndex = 5,
                                 Parent = container
                             })
-                            self:AddToRegistry(inputFrame, { BackgroundColor3 = "BackgroundColor" })
+                            Library:AddToRegistry(inputFrame, { BackgroundColor3 = "BackgroundColor" })
                             Instance.new("UICorner").Parent = inputFrame
-                            self:AddGradient(inputFrame)
+                            Library:AddGradient(inputFrame)
 
                             local textBox = self:Create("TextBox", {
                                 BackgroundTransparency = 1,
                                 Position = UDim2.new(0, 5, 0, 0),
                                 Size = UDim2.new(1, -5, 1, 0),
-                                FontFace = self.Font,
+                                FontFace = Library.Font,
                                 PlaceholderText = placeholder,
                                 Text = default,
-                                TextColor3 = self.FontColor,
+                                TextColor3 = Library.FontColor,
                                 TextSize = 14,
                                 TextXAlignment = Enum.TextXAlignment.Left,
                                 ZIndex = 7,
                                 Parent = inputFrame
                             })
-                            self:AddToRegistry(textBox, { TextColor3 = "FontColor" })
+                            Library:AddToRegistry(textBox, { TextColor3 = "FontColor" })
 
                             textBox:GetPropertyChangedSignal("Text"):Connect(function()
                                 local val = textBox.Text
@@ -1213,15 +1227,15 @@ function Library:CreateWindow(settings)
                             local tabboxObj = { Tabs = {}, ParentTab = self }
 
                             local box = self:Create("Frame", {
-                                BackgroundColor3 = self.MainColor,
+                                BackgroundColor3 = Library.MainColor,
                                 BorderSizePixel = 0,
                                 Size = UDim2.new(1, 0, 0, 0),
                                 ZIndex = 2,
                                 Parent = col
                             })
-                            self:AddToRegistry(box, { BackgroundColor3 = "MainColor" })
+                            Library:AddToRegistry(box, { BackgroundColor3 = "MainColor" })
                             Instance.new("UIStroke").Parent = box
-                            self:AddGradient(box)
+                            Library:AddGradient(box)
 
                             local header = self:Create("Frame", {
                                 BackgroundTransparency = 1,
@@ -1238,14 +1252,14 @@ function Library:CreateWindow(settings)
                             headerLayout.Parent = header
 
                             local indicator = self:Create("Frame", {
-                                BackgroundColor3 = self.AccentColor,
+                                BackgroundColor3 = Library.AccentColor,
                                 BorderSizePixel = 0,
                                 Position = UDim2.new(0, 0, 0, 22),
                                 Size = UDim2.new(0, 0, 0, 2),
                                 ZIndex = 10,
                                 Parent = box
                             })
-                            self:AddToRegistry(indicator, { BackgroundColor3 = "AccentColor" })
+                            Library:AddToRegistry(indicator, { BackgroundColor3 = "AccentColor" })
 
                             local contentAreaTabbox = self:Create("Frame", {
                                 BackgroundTransparency = 1,
@@ -1272,7 +1286,7 @@ function Library:CreateWindow(settings)
                                     btn.Size = UDim2.new(1 / #self.Tabs, 0, 1, 0)
                                 end
 
-                                local labelTab = self:CreateLabel({
+                                local labelTab = Library:CreateLabel({
                                     Size = UDim2.new(1, 0, 1, 0),
                                     Text = tabName,
                                     TextSize = 13,
@@ -1300,10 +1314,9 @@ function Library:CreateWindow(settings)
                                         for _, t in pairs(tabboxObj.Tabs) do
                                             if t ~= tabObj then t:Hide() end
                                         end
-                                        labelTab.TextColor3 = self.AccentColor
-                                        self:AddToRegistry(labelTab, { TextColor3 = "AccentColor" })
+                                        labelTab.TextColor3 = Library.AccentColor
+                                        Library:AddToRegistry(labelTab, { TextColor3 = "AccentColor" })
                                         tabContent.Visible = true
-                                        -- обновляем индикатор
                                         local btnPos = tabButton.AbsolutePosition.X
                                         local headerPos = header.AbsolutePosition.X
                                         local btnSize = tabButton.AbsoluteSize.X
@@ -1312,8 +1325,8 @@ function Library:CreateWindow(settings)
                                         self:Resize()
                                     end,
                                     Hide = function(self)
-                                        labelTab.TextColor3 = self.FontColor
-                                        self:AddToRegistry(labelTab, { TextColor3 = "FontColor" })
+                                        labelTab.TextColor3 = Library.FontColor
+                                        Library:AddToRegistry(labelTab, { TextColor3 = "FontColor" })
                                         tabContent.Visible = false
                                     end,
                                     Resize = function(self)
@@ -1335,33 +1348,28 @@ function Library:CreateWindow(settings)
                                         return blank
                                     end,
                                     AddLabel = function(self, text, wrap)
-                                        return parentGroup.AddLabel(self, text, wrap) -- используем функцию из группы
+                                        return groupObj:AddLabel(text, wrap)
                                     end,
                                     AddDivider = function(self)
-                                        return parentGroup.AddDivider(self)
+                                        return groupObj:AddDivider()
                                     end,
                                     AddButton = function(self, data)
-                                        return parentGroup.AddButton(self, data)
+                                        return groupObj:AddButton(data)
                                     end,
                                     AddToggle = function(self, id, data)
-                                        return parentGroup.AddToggle(self, id, data)
+                                        return groupObj:AddToggle(id, data)
                                     end,
                                     AddSlider = function(self, id, data)
-                                        return parentGroup.AddSlider(self, id, data)
+                                        return groupObj:AddSlider(id, data)
                                     end,
                                     AddDropdown = function(self, id, data)
-                                        return parentGroup.AddDropdown(self, id, data)
+                                        return groupObj:AddDropdown(id, data)
                                     end,
                                     AddInput = function(self, id, data)
-                                        return parentGroup.AddInput(self, id, data)
+                                        return groupObj:AddInput(id, data)
                                     end,
                                 }
-                                -- копируем методы из группы (они определены выше)
-                                -- Но мы можем использовать замыкание на родительскую группу
-                                -- Для простоты будем использовать функции группы через замыкание
-                                -- Однако здесь проще использовать метатаблицу или просто скопировать функции
-                                -- Сделаем через метатаблицу
-                                setmetatable(tabObj, { __index = parentGroup })
+                                setmetatable(tabObj, { __index = groupObj })
                                 tabObj.Container = tabContent
                                 tabObj.BoxFrame = box
                                 tabObj:AddBlank(3)
@@ -1378,7 +1386,6 @@ function Library:CreateWindow(settings)
                         end,
                     }
 
-                    -- Методы для группы, которые мы будем использовать в Tabbox и Tab
                     local parentGroup = groupObj
 
                     groupObj.AddTabbox = function(self, name, side)
@@ -1406,15 +1413,13 @@ function Library:CreateWindow(settings)
                 end,
             }
 
-            -- При клике на вкладку
             tabButton.InputBegan:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                    self:PlayClickSound()
+                    Library:PlayClickSound()
                     tabObj:ShowTab()
                 end
             end)
 
-            -- Если это первая вкладка, показываем её
             if #self.Tabs == 1 then
                 tabObj:ShowTab()
             end
@@ -1423,7 +1428,6 @@ function Library:CreateWindow(settings)
         end
     }
 
-    -- Добавляем вспомогательный метод для проверки мыши над открытыми фреймами
     function Library:MouseIsOverOpenedFrame()
         local mouse = game:GetService("Players").LocalPlayer:GetMouse()
         for frame, _ in pairs(self.OpenedFrames) do
@@ -1439,18 +1443,8 @@ function Library:CreateWindow(settings)
         return false
     end
 
-    -- Возвращаем объект окна
     return windowObj
 end
 
--- Создаём глобальную переменную для доступа к библиотеке
 _G.PalantirUI = Library
-
--- Если нужно, можно создать окно по умолчанию (раскомментируйте)
--- local win = Library:CreateWindow({ Title = "PalantirUI Demo", Center = true, Size = UDim2.fromOffset(500, 400) })
--- local tab = win:AddTab("Main")
--- local group = tab:AddLeftGroupbox("Controls")
--- group:AddButton({ Text = "Test", Func = function() Library:Notify("Hello!") end })
--- win:Toggle() -- показать окно
-
 print("PalantirUI Library loaded successfully!")
